@@ -1,25 +1,36 @@
-# Wendel Dev — YouTube Downloader
+# Wendel Dev — Media Downloader + AI Transcriber
 
-Downloader de vídeos do YouTube com interface animada no terminal. Salva vídeo em **MP4** ou extrai áudio em **MP3 (320 kbps)**.
+Ferramenta animada para Windows que baixa vídeos do YouTube em **MP4**, extrai **MP3** e transcreve arquivos de áudio/vídeo com a API da OpenAI.
 
-## Como usar no Windows
+## Recursos
 
-1. Instale o [Python 3.10+](https://www.python.org/downloads/) e marque a opção **Add Python to PATH**.
-2. Dê dois cliques em `iniciar.bat`.
-3. Cole o link do vídeo e escolha MP4 ou MP3.
-4. O arquivo ficará na pasta `downloads`.
+- Download MP4 ou MP3 pelo link do YouTube.
+- Seleção de arquivo local por janela do Windows.
+- Fluxo de baixar e transcrever automaticamente.
+- Transcrição com `gpt-4o-mini-transcribe`.
+- Tradução opcional para português do Brasil.
+- Divisão automática de arquivos longos em partes.
+- Geração de texto `.txt` e legenda `.srt`.
+- Chave da API protegida no arquivo local `.env`, ignorado pelo Git.
 
-Na primeira execução, o script cria um ambiente virtual e instala automaticamente as dependências. O FFmpeg também é obtido pela dependência `imageio-ffmpeg`.
+## Como usar
 
-O programa funciona sem configuração adicional. Ter o [Node.js](https://nodejs.org/) instalado é opcional, mas pode ajudar o `yt-dlp` a disponibilizar todos os formatos quando o YouTube exige desafios JavaScript.
+1. Instale o [Python 3.10+](https://www.python.org/downloads/) e marque **Add Python to PATH**.
+2. Crie uma chave em [OpenAI API Keys](https://platform.openai.com/api-keys).
+3. Dê dois cliques em `iniciar.bat`.
+4. Escolha baixar, transcrever um arquivo local ou fazer os dois.
+5. Na primeira transcrição, cole a chave quando o programa pedir. A digitação fica oculta.
+
+Downloads ficam em `downloads`. Textos e legendas ficam em `transcricoes`.
+
+## Segurança
+
+Nunca publique sua chave. O programa pode salvá-la em `.env`, que está listado no `.gitignore`. O arquivo `.env.example` contém apenas um exemplo sem credencial real.
+
+## NeonDB
+
+O NeonDB não é necessário para baixar ou transcrever. Uma versão futura poderá usá-lo para armazenar histórico, títulos e caminhos dos resultados sem guardar a chave da OpenAI.
 
 ## Aviso
 
-Use esta ferramenta apenas para baixar conteúdo próprio, licenciado ou cuja autorização de download você possua. Respeite direitos autorais e os termos do serviço aplicáveis.
-
-## Tecnologias
-
-- Python
-- yt-dlp
-- Rich
-- FFmpeg
+Use apenas para conteúdo próprio, licenciado ou autorizado. Respeite direitos autorais e os termos dos serviços aplicáveis.
