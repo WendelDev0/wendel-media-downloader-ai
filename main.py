@@ -28,7 +28,11 @@ from yt_dlp import YoutubeDL
 
 
 console = Console()
-ROOT = Path(__file__).resolve().parent
+ROOT = (
+    Path(sys.executable).resolve().parent
+    if getattr(sys, "frozen", False)
+    else Path(__file__).resolve().parent
+)
 DOWNLOADS = ROOT / "downloads"
 TRANSCRIPTS = ROOT / "transcricoes"
 ENV_FILE = ROOT / ".env"

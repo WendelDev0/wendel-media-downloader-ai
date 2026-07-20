@@ -28,7 +28,18 @@ Ferramenta animada para Windows que baixa vídeos do YouTube em **MP4**, extrai 
 5. Na primeira transcrição, cole a chave quando o programa pedir. A digitação fica oculta.
 6. Após transcrever, confirme a criação automática do título e da descrição do criativo.
 
-Downloads ficam em `downloads`. Cada trabalho recebe uma pasta em `transcricoes/Nome do Tema/`, contendo o texto, a legenda e a estratégia em Markdown quando ela for gerada.
+Downloads ficam em `downloads`. Cada trabalho recebe uma pasta em `transcricoes/Nome do Tema/`, contendo o texto, a legenda e o arquivo de título e descrição quando ele for gerado.
+
+## Gerar aplicativo executável
+
+1. Execute `iniciar.bat` pelo menos uma vez.
+2. Dê dois cliques em `build_exe.bat`.
+3. Aguarde a compilação terminar.
+4. Compartilhe o arquivo `dist/WendelDev-AI-Windows.zip`.
+
+Quem receber deve extrair o ZIP inteiro e abrir `WendelDev-AI.exe`. Não é necessário instalar Python. Downloads, transcrições e a configuração local da API ficam ao lado do executável.
+
+Cada usuário precisa informar sua própria `OPENAI_API_KEY`. Nunca distribua seu arquivo `.env` dentro do ZIP.
 
 Também é possível usar a opção `04` para gerar um título e uma descrição a partir de uma transcrição `.txt` já existente.
 
