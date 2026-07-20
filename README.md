@@ -11,6 +11,8 @@ Ferramenta animada para Windows que baixa vídeos do YouTube em **MP4**, extrai 
 - Tradução opcional para português do Brasil.
 - Divisão automática de arquivos longos em partes.
 - Geração de texto `.txt` e legenda `.srt`.
+- Pacote completo de estratégia para tráfego pago após a transcrição.
+- Títulos, descrição, headlines, ganchos, copies, roteiros, públicos e testes A/B.
 - Chave da API protegida no arquivo local `.env`, ignorado pelo Git.
 
 ## Como usar
@@ -20,8 +22,15 @@ Ferramenta animada para Windows que baixa vídeos do YouTube em **MP4**, extrai 
 3. Dê dois cliques em `iniciar.bat`.
 4. Escolha baixar, transcrever um arquivo local ou fazer os dois.
 5. Na primeira transcrição, cole a chave quando o programa pedir. A digitação fica oculta.
+6. Após transcrever, confirme a criação do pacote de tráfego pago e informe oferta, público, objetivo e plataforma.
 
-Downloads ficam em `downloads`. Textos e legendas ficam em `transcricoes`.
+Downloads ficam em `downloads`. Textos, legendas e estratégias em Markdown ficam em `transcricoes`.
+
+Também é possível usar a opção `04` para gerar uma estratégia a partir de uma transcrição `.txt` já existente.
+
+## Skill incluída
+
+O repositório inclui a skill `skills/generate-paid-traffic-assets`, que padroniza a transformação de transcrições em campanhas de performance. Ela pode ser reutilizada por agentes compatíveis com skills do Codex.
 
 ## Segurança
 

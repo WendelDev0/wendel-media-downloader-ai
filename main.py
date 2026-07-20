@@ -198,6 +198,69 @@ def translate_ptbr(client: OpenAI, text: str) -> str:
     return response.output_text.strip()
 
 
+def generate_paid_traffic_assets(client: OpenAI, transcript_path: Path) -> Path:
+    console.print("\n[bold cyan]CONFIGURAÇÃO DA ESTRATÉGIA DE TRÁFEGO PAGO[/]")
+    offer = Prompt.ask("[cyan]Qual produto, serviço ou oferta será anunciada?[/]")
+    audience = Prompt.ask(
+        "[cyan]Qual é o público-alvo?[/]",
+        default="Identificar a partir da transcrição",
+    )
+    objective = Prompt.ask(
+        "[cyan]Objetivo principal[/]",
+        choices=["vendas", "leads", "mensagens", "visualizações", "reconhecimento"],
+        default="vendas",
+    )
+    platform = Prompt.ask(
+        "[cyan]Plataforma[/]",
+        choices=["meta", "google", "tiktok", "multicanal"],
+        default="meta",
+    )
+    transcript = transcript_path.read_text(encoding="utf-8")
+    instructions = """
+Atue como estrategista sênior de performance e copywriter brasileiro. Transforme a
+transcrição fornecida em um pacote executável de tráfego pago, em Markdown e português do
+Brasil. Baseie afirmações no conteúdo; não invente provas, números, garantias, depoimentos ou
+atributos da oferta. Diferencie fatos da transcrição de hipóteses estratégicas.
+
+Entregue obrigatoriamente:
+1. resumo estratégico e promessa central;
+2. avatar, dores, desejos, objeções e nível de consciência;
+3. 10 títulos de vídeo e 10 headlines de anúncio;
+4. descrição completa do vídeo com CTA e palavras-chave;
+5. 7 ganchos para os primeiros 3 segundos;
+6. 5 ângulos criativos, cada um com conceito visual e roteiro de 30 a 60 segundos;
+7. 5 textos principais para anúncios, em versões curta e longa;
+8. CTAs e ideias de thumbnail sem clickbait enganoso;
+9. estrutura de campanha por público frio, morno e remarketing;
+10. hipóteses de segmentação, exclusões e posicionamentos;
+11. plano de testes A/B priorizado com variável, hipótese e critério de decisão;
+12. métricas para acompanhar em cada etapa do funil;
+13. alertas de conformidade e trechos que exigem validação humana.
+
+Use títulos claros, listas práticas e blocos prontos para copiar. Não prometa resultados.
+""".strip()
+    request = f"""
+OFERTA: {offer}
+PÚBLICO: {audience}
+OBJETIVO: {objective}
+PLATAFORMA: {platform}
+
+TRANSCRIÇÃO:
+{transcript}
+""".strip()
+
+    with console.status("[green]Criando estratégia, copies e criativos com IA...[/]"):
+        response = client.responses.create(
+            model="gpt-5.6-luna",
+            reasoning={"effort": "low"},
+            instructions=instructions,
+            input=request,
+        )
+    output = TRANSCRIPTS / f"{transcript_path.stem}-trafego-pago.md"
+    output.write_text(response.output_text.strip() + "\n", encoding="utf-8")
+    return output
+
+
 def approximate_cues(text: str, start: float, duration: float = 1200) -> list[tuple[float, float, str]]:
     sentences = [item.strip() for item in re.split(r"(?<=[.!?])\s+", text) if item.strip()]
     if not sentences:
@@ -250,7 +313,35 @@ def show_menu() -> str:
     console.print("\n[bold green][01][/] Baixar do YouTube")
     console.print("[bold cyan][02][/] Transcrever arquivo local com IA")
     console.print("[bold magenta][03][/] Baixar do YouTube e transcrever")
-    return Prompt.ask("\n[cyan]Escolha uma missão[/]", choices=["1", "2", "3", "01", "02", "03"])
+    console.print("[bold yellow][04][/] Criar estratégia de tráfego a partir de uma transcrição")
+    return Prompt.ask(
+        "\n[cyan]Escolha uma missão[/]",
+        choices=["1", "2", "3", "4", "01", "02", "03", "04"],
+    )
+
+
+def select_transcript() -> Path:
+    selected = ""
+    try:
+        from tkinter import Tk, filedialog
+
+        window = Tk()
+        window.withdraw()
+        window.attributes("-topmost", True)
+        selected = filedialog.askopenfilename(
+            title="Selecione uma transcrição",
+            initialdir=TRANSCRIPTS,
+            filetypes=[("Transcrição em texto", "*.txt")],
+        )
+        window.destroy()
+    except Exception:
+        pass
+    if not selected:
+        selected = Prompt.ask("[cyan]Digite o caminho completo da transcrição .txt[/]").strip(' "')
+    path = Path(selected).expanduser().resolve()
+    if not path.is_file() or path.suffix.lower() != ".txt":
+        raise ValueError("Selecione um arquivo de transcrição .txt válido.")
+    return path
 
 
 def main() -> None:
@@ -267,11 +358,26 @@ def main() -> None:
             console.print(f"[bold green]✓ Arquivo salvo:[/] {media}")
         if choice == "2":
             media = select_local_media()
+        transcript_path: Path | None = None
         if choice in {"2", "3"} and media:
             translate = Confirm.ask("Traduzir o resultado para português do Brasil?", default=True)
             txt, srt = transcribe(media, translate)
+            transcript_path = txt
             console.print(Panel(
                 f"[bold bright_green]✓ TRANSCRIÇÃO CONCLUÍDA[/]\n\n[white]{txt}[/]\n[white]{srt}[/]",
+                border_style="green",
+            ))
+            if Confirm.ask("Deseja criar agora o pacote completo para tráfego pago?", default=True):
+                strategy = generate_paid_traffic_assets(get_openai_client(), transcript_path)
+                console.print(Panel(
+                    f"[bold bright_green]✓ ESTRATÉGIA CONCLUÍDA[/]\n\n[white]{strategy}[/]",
+                    border_style="green",
+                ))
+        if choice == "4":
+            transcript_path = select_transcript()
+            strategy = generate_paid_traffic_assets(get_openai_client(), transcript_path)
+            console.print(Panel(
+                f"[bold bright_green]✓ ESTRATÉGIA CONCLUÍDA[/]\n\n[white]{strategy}[/]",
                 border_style="green",
             ))
     except KeyboardInterrupt:
