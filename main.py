@@ -393,9 +393,11 @@ def unique_output_paths(theme: str) -> tuple[Path, Path]:
         suffix = 1
         while True:
             label = theme if suffix == 1 else f"{theme} ({suffix})"
-            txt = TRANSCRIPTS / f"{label}.txt"
-            srt = TRANSCRIPTS / f"{label}.srt"
-            if not txt.exists() and not srt.exists():
+            folder = TRANSCRIPTS / label
+            if not folder.exists():
+                folder.mkdir(parents=True, exist_ok=False)
+                txt = folder / f"{label}.txt"
+                srt = folder / f"{label}.srt"
                 txt.touch(exist_ok=False)
                 srt.touch(exist_ok=False)
                 return txt, srt
@@ -460,7 +462,7 @@ TRANSCRIÇÃO:
             instructions=instructions,
             input=request,
         )
-    output = TRANSCRIPTS / f"{transcript_path.stem}-trafego-pago.md"
+    output = transcript_path.parent / f"{transcript_path.stem}-trafego-pago.md"
     output.write_text(response.output_text.strip() + "\n", encoding="utf-8")
     return output
 
