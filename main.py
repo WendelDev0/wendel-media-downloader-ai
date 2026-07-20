@@ -404,65 +404,30 @@ def unique_output_paths(theme: str) -> tuple[Path, Path]:
             suffix += 1
 
 
-def generate_paid_traffic_assets(client: OpenAI, transcript_path: Path) -> Path:
-    console.print("\n[bold cyan]CONFIGURAÇÃO DA ESTRATÉGIA DE TRÁFEGO PAGO[/]")
-    offer = Prompt.ask("[cyan]Qual produto, serviço ou oferta será anunciada?[/]")
-    audience = Prompt.ask(
-        "[cyan]Qual é o público-alvo?[/]",
-        default="Identificar a partir da transcrição",
-    )
-    objective = Prompt.ask(
-        "[cyan]Objetivo principal[/]",
-        choices=["vendas", "leads", "mensagens", "visualizações", "reconhecimento"],
-        default="vendas",
-    )
-    platform = Prompt.ask(
-        "[cyan]Plataforma[/]",
-        choices=["meta", "google", "tiktok", "multicanal"],
-        default="meta",
-    )
+def generate_creative_metadata(client: OpenAI, transcript_path: Path) -> Path:
     transcript = transcript_path.read_text(encoding="utf-8")
     instructions = """
-Atue como estrategista sênior de performance e copywriter brasileiro. Transforme a
-transcrição fornecida em um pacote executável de tráfego pago, em Markdown e português do
-Brasil. Baseie afirmações no conteúdo; não invente provas, números, garantias, depoimentos ou
-atributos da oferta. Diferencie fatos da transcrição de hipóteses estratégicas.
+Crie metadados em português do Brasil para um criativo de vídeo usando somente a transcrição.
+Não invente produto, preço, prova, resultado, promessa, link, hashtag ou chamada para ação que
+não esteja sustentada pelo conteúdo. Entregue exatamente duas seções em Markdown:
 
-Entregue obrigatoriamente:
-1. resumo estratégico e promessa central;
-2. avatar, dores, desejos, objeções e nível de consciência;
-3. 10 títulos de vídeo e 10 headlines de anúncio;
-4. descrição completa do vídeo com CTA e palavras-chave;
-5. 7 ganchos para os primeiros 3 segundos;
-6. 5 ângulos criativos, cada um com conceito visual e roteiro de 30 a 60 segundos;
-7. 5 textos principais para anúncios, em versões curta e longa;
-8. CTAs e ideias de thumbnail sem clickbait enganoso;
-9. estrutura de campanha por público frio, morno e remarketing;
-10. hipóteses de segmentação, exclusões e posicionamentos;
-11. plano de testes A/B priorizado com variável, hipótese e critério de decisão;
-12. métricas para acompanhar em cada etapa do funil;
-13. alertas de conformidade e trechos que exigem validação humana.
+# Título
+Um único título claro, específico e atraente, sem clickbait enganoso, com no máximo 100 caracteres.
 
-Use títulos claros, listas práticas e blocos prontos para copiar. Não prometa resultados.
-""".strip()
-    request = f"""
-OFERTA: {offer}
-PÚBLICO: {audience}
-OBJETIVO: {objective}
-PLATAFORMA: {platform}
-
-TRANSCRIÇÃO:
-{transcript}
+# Descrição
+Uma descrição fiel e natural, entre 2 e 4 parágrafos, explicando o tema, os pontos principais e
+o valor do conteúdo. Não acrescente estratégia de campanha, público, segmentação ou testes.
 """.strip()
 
-    with console.status("[green]Criando estratégia, copies e criativos com IA...[/]"):
-        response = client.responses.create(
+    with console.status("[green]Criando título e descrição do criativo...[/]"):
+        response = call_with_retry(
+            client.responses.create,
             model="gpt-5.6-luna",
-            reasoning={"effort": "low"},
+            reasoning={"effort": "none"},
             instructions=instructions,
-            input=request,
+            input=transcript,
         )
-    output = transcript_path.parent / f"{transcript_path.stem}-trafego-pago.md"
+    output = transcript_path.parent / f"{transcript_path.stem}-titulo-e-descricao.md"
     output.write_text(response.output_text.strip() + "\n", encoding="utf-8")
     return output
 
@@ -586,7 +551,7 @@ def show_menu() -> str:
     console.print("\n[bold green][01][/] Baixar do YouTube")
     console.print("[bold cyan][02][/] Transcrever arquivo local com IA")
     console.print("[bold magenta][03][/] Baixar do YouTube e transcrever")
-    console.print("[bold yellow][04][/] Criar estratégia de tráfego a partir de uma transcrição")
+    console.print("[bold yellow][04][/] Criar título e descrição a partir de uma transcrição")
     console.print("[bold bright_blue][05][/] Transcrever vários arquivos ao mesmo tempo")
     return Prompt.ask(
         "\n[cyan]Escolha uma missão[/]",
@@ -647,17 +612,17 @@ def main() -> None:
                 f"[bold bright_green]✓ TRANSCRIÇÃO CONCLUÍDA[/]\n\n[white]{txt}[/]\n[white]{srt}[/]",
                 border_style="green",
             ))
-            if Confirm.ask("Deseja criar agora o pacote completo para tráfego pago?", default=True):
-                strategy = generate_paid_traffic_assets(get_openai_client(), transcript_path)
+            if Confirm.ask("Deseja criar agora o título e a descrição do criativo?", default=True):
+                metadata = generate_creative_metadata(get_openai_client(), transcript_path)
                 console.print(Panel(
-                    f"[bold bright_green]✓ ESTRATÉGIA CONCLUÍDA[/]\n\n[white]{strategy}[/]",
+                    f"[bold bright_green]✓ TÍTULO E DESCRIÇÃO CONCLUÍDOS[/]\n\n[white]{metadata}[/]",
                     border_style="green",
                 ))
         if choice == "4":
             transcript_path = select_transcript()
-            strategy = generate_paid_traffic_assets(get_openai_client(), transcript_path)
+            metadata = generate_creative_metadata(get_openai_client(), transcript_path)
             console.print(Panel(
-                f"[bold bright_green]✓ ESTRATÉGIA CONCLUÍDA[/]\n\n[white]{strategy}[/]",
+                f"[bold bright_green]✓ TÍTULO E DESCRIÇÃO CONCLUÍDOS[/]\n\n[white]{metadata}[/]",
                 border_style="green",
             ))
         if choice == "5":

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Gerador de Tráfego Pago"
-  short_description: "Cria campanhas a partir de transcrições"
-  default_prompt: "Use $generate-paid-traffic-assets para transformar esta transcrição em ativos de tráfego pago."

@@ -11,8 +11,7 @@ Ferramenta animada para Windows que baixa vídeos do YouTube em **MP4**, extrai 
 - Tradução opcional para português do Brasil.
 - Divisão automática de arquivos longos em partes.
 - Geração de texto `.txt` e legenda `.srt`.
-- Pacote completo de estratégia para tráfego pago após a transcrição.
-- Títulos, descrição, headlines, ganchos, copies, roteiros, públicos e testes A/B.
+- Geração opcional de um título e uma descrição fiéis ao conteúdo transcrito.
 - Seleção de quantos áudios e vídeos você quiser em um único lote.
 - Até quatro transcrições simultâneas, com falhas isoladas e novas tentativas automáticas.
 - Nomes automáticos baseados no tema central de cada conteúdo.
@@ -27,17 +26,17 @@ Ferramenta animada para Windows que baixa vídeos do YouTube em **MP4**, extrai 
 3. Dê dois cliques em `iniciar.bat`.
 4. Escolha baixar, transcrever um arquivo local ou fazer os dois.
 5. Na primeira transcrição, cole a chave quando o programa pedir. A digitação fica oculta.
-6. Após transcrever, confirme a criação do pacote de tráfego pago e informe oferta, público, objetivo e plataforma.
+6. Após transcrever, confirme a criação automática do título e da descrição do criativo.
 
 Downloads ficam em `downloads`. Cada trabalho recebe uma pasta em `transcricoes/Nome do Tema/`, contendo o texto, a legenda e a estratégia em Markdown quando ela for gerada.
 
-Também é possível usar a opção `04` para gerar uma estratégia a partir de uma transcrição `.txt` já existente.
+Também é possível usar a opção `04` para gerar um título e uma descrição a partir de uma transcrição `.txt` já existente.
 
 Use a opção `05` para selecionar vários arquivos. Você pode escolher de 1 a 4 processamentos simultâneos; todos os resultados recebem nomes temáticos e ficam na pasta `transcricoes`.
 
 ## Skill incluída
 
-O repositório inclui a skill `skills/generate-paid-traffic-assets`, que padroniza a transformação de transcrições em campanhas de performance. Ela pode ser reutilizada por agentes compatíveis com skills do Codex.
+O repositório inclui a skill `skills/generate-creative-metadata`, que padroniza a geração de título e descrição a partir de transcrições. Ela pode ser reutilizada por agentes compatíveis com skills do Codex.
 
 ## Segurança
 

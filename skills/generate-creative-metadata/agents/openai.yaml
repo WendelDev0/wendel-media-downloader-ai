@@ -1,0 +1,4 @@
+interface:
+  display_name: "Título e Descrição do Criativo"
+  short_description: "Gera título e descrição da transcrição"
+  default_prompt: "Use $generate-creative-metadata para criar um título e uma descrição fiéis a esta transcrição."
