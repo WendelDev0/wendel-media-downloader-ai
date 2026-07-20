@@ -9,16 +9,20 @@ import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
 
 import imageio_ffmpeg
+from rich import box
 from dotenv import load_dotenv
 from openai import APIConnectionError, InternalServerError, OpenAI, RateLimitError
 from rich.align import Align
 from rich.console import Console
+from rich.live import Live
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from rich.prompt import Confirm, Prompt
+from rich.table import Table
 from rich.text import Text
 from yt_dlp import YoutubeDL
 
@@ -34,6 +38,127 @@ YOUTUBE_URL = re.compile(
     re.IGNORECASE,
 )
 OUTPUT_NAME_LOCK = threading.Lock()
+
+
+@dataclass
+class TranscriptionJob:
+    name: str
+    stage: str = "Na fila"
+    percent: float = 0
+    status: str = "waiting"
+    started_at: float = 0
+
+
+class TranscriptionDashboard:
+    def __init__(self, sources: list[Path]) -> None:
+        self.jobs = {str(path): TranscriptionJob(path.name) for path in sources}
+        self.started_at = time.monotonic()
+        self.lock = threading.Lock()
+        self.live = Live(self, console=console, refresh_per_second=10, transient=False)
+
+    def __rich_console__(self, _console, _options):
+        yield self.render()
+
+    def __enter__(self) -> "TranscriptionDashboard":
+        self.live.start()
+        return self
+
+    def __exit__(self, *_args) -> None:
+        self.live.update(self.render(), refresh=True)
+        self.live.stop()
+
+    def update(
+        self,
+        source: Path,
+        stage: str,
+        percent: float,
+        status: str = "running",
+    ) -> None:
+        with self.lock:
+            job = self.jobs[str(source)]
+            job.stage = stage
+            job.percent = max(0, min(100, percent))
+            job.status = status
+            if not job.started_at and status == "running":
+                job.started_at = time.monotonic()
+        self.live.update(self)
+
+    def render(self):
+        with self.lock:
+            jobs = list(self.jobs.values())
+            elapsed = int(time.monotonic() - self.started_at)
+            average = sum(job.percent for job in jobs) / max(1, len(jobs))
+            done = sum(job.status == "done" for job in jobs)
+            failed = sum(job.status == "error" for job in jobs)
+
+            phase = int(time.monotonic() * 8) % 34
+            scanner = Text("  WENDEL DEV // NEURAL TRANSCRIPTION ENGINE  ", style="dim green")
+            scanner.stylize("bold bright_cyan", phase, min(phase + 5, len(scanner)))
+            header = Panel(
+                Align.center(scanner),
+                title="[bold bright_green]SYSTEM ONLINE[/]",
+                subtitle=f"[cyan]{elapsed // 60:02}:{elapsed % 60:02}[/]",
+                border_style="bright_green",
+                box=box.DOUBLE,
+            )
+
+            overall = Progress(
+                TextColumn("[bold cyan]PROGRESSO GLOBAL[/]"),
+                BarColumn(bar_width=None, complete_style="bright_green", finished_style="bright_cyan"),
+                TaskProgressColumn(),
+                expand=True,
+            )
+            overall.add_task("lote", total=100, completed=average)
+
+            table = Table(
+                box=box.ROUNDED,
+                border_style="green",
+                header_style="bold bright_cyan",
+                expand=True,
+                padding=(0, 1),
+            )
+            table.add_column("STATUS", width=10, justify="center")
+            table.add_column("ARQUIVO", ratio=4, overflow="ellipsis", no_wrap=True)
+            table.add_column("ETAPA ATUAL", ratio=3, overflow="ellipsis")
+            table.add_column("PROGRESSO", width=12, justify="right")
+            icons = {
+                "waiting": ("[dim]AGUARDA[/]", "dim"),
+                "running": ("[bold yellow]ATIVO[/]", "yellow"),
+                "done": ("[bold green]PRONTO[/]", "green"),
+                "error": ("[bold red]ERRO[/]", "red"),
+            }
+            priority = {"running": 0, "error": 1, "waiting": 2, "done": 3}
+            visible_jobs = sorted(jobs, key=lambda job: priority[job.status])[:8]
+            for job in visible_jobs:
+                badge, color = icons[job.status]
+                table.add_row(
+                    badge,
+                    Text(job.name, style="white"),
+                    Text(job.stage, style=color),
+                    Text(f"{job.percent:6.1f}%", style=f"bold {color}"),
+                )
+            if len(jobs) > len(visible_jobs):
+                table.add_row(
+                    "[dim]MAIS[/]",
+                    f"[dim]+ {len(jobs) - len(visible_jobs)} arquivos no lote[/]",
+                    "[dim]Processamento continua em segundo plano[/]",
+                    "[dim]...[/]",
+                )
+
+            wave_chars = ".:-=+*#%@#*+=-:"
+            offset = int(time.monotonic() * 12) % len(wave_chars)
+            wave = (wave_chars[offset:] + wave_chars[:offset]) * 4
+            footer = Panel(
+                Align.center(Text(wave, style="bold bright_green")),
+                title=f"[white]ARQUIVOS {len(jobs)}[/]  [green]PRONTOS {done}[/]  [red]FALHAS {failed}[/]",
+                border_style="cyan",
+            )
+            layout = Table.grid(expand=True)
+            layout.add_row(header)
+            layout.add_row(overall)
+            layout.add_row(table)
+            layout.add_row(footer)
+            return layout
 
 
 def intro() -> None:
@@ -354,16 +479,32 @@ def approximate_cues(text: str, start: float, duration: float = 1200) -> list[tu
     return cues
 
 
-def transcribe(source: Path, translate: bool, client: OpenAI | None = None) -> tuple[Path, Path]:
+def transcribe(
+    source: Path,
+    translate: bool,
+    client: OpenAI | None = None,
+    dashboard: TranscriptionDashboard | None = None,
+) -> tuple[Path, Path]:
     client = client or get_openai_client()
     TRANSCRIPTS.mkdir(exist_ok=True)
     all_text: list[str] = []
     cues: list[tuple[float, float, str]] = []
 
+    if dashboard:
+        dashboard.update(source, "Preparando áudio", 3)
     with tempfile.TemporaryDirectory(prefix="wendel_transcribe_") as temp:
         parts = split_media(source, Path(temp))
+        if dashboard:
+            dashboard.update(source, f"Áudio dividido em {len(parts)} partes", 8)
         for index, part in enumerate(parts, start=1):
-            console.print(f"[green]>[/] Transcrevendo parte {index}/{len(parts)}...")
+            if dashboard:
+                dashboard.update(
+                    source,
+                    f"IA ouvindo • parte {index}/{len(parts)}",
+                    8 + (index - 1) / len(parts) * 72,
+                )
+            else:
+                console.print(f"[green]>[/] Transcrevendo parte {index}/{len(parts)}...")
             with part.open("rb") as audio:
                 result = call_with_retry(
                     client.audio.transcriptions.create,
@@ -373,20 +514,38 @@ def transcribe(source: Path, translate: bool, client: OpenAI | None = None) -> t
                     prompt="Transcrição fiel, com pontuação correta. Preserve nomes e termos técnicos.",
                 )
             original = result.text.strip()
+            if dashboard and translate:
+                dashboard.update(
+                    source,
+                    f"Traduzindo • parte {index}/{len(parts)}",
+                    8 + (index - 0.35) / len(parts) * 72,
+                )
             final_text = translate_ptbr(client, original) if translate else original
             all_text.append(final_text)
 
             offset = (index - 1) * 1200
             cues.extend(approximate_cues(final_text, offset))
+            if dashboard:
+                dashboard.update(
+                    source,
+                    f"Parte {index}/{len(parts)} concluída",
+                    8 + index / len(parts) * 72,
+                )
 
     complete_text = "\n\n".join(all_text)
+    if dashboard:
+        dashboard.update(source, "Identificando tema central", 88)
     theme = safe_theme_name(client, complete_text)
+    if dashboard:
+        dashboard.update(source, f"Organizando • {theme}", 94)
     text_path, srt_path = unique_output_paths(theme)
     text_path.write_text(complete_text + "\n", encoding="utf-8")
     srt_lines: list[str] = []
     for number, (start, end, text) in enumerate(cues, start=1):
         srt_lines.extend([str(number), f"{srt_time(start)} --> {srt_time(end)}", text, ""])
     srt_path.write_text("\n".join(srt_lines), encoding="utf-8")
+    if dashboard:
+        dashboard.update(source, theme, 100, "done")
     return text_path, srt_path
 
 
@@ -404,22 +563,20 @@ def transcribe_batch(sources: list[Path], translate: bool, workers: int) -> tupl
     client = get_openai_client()
     completed: list[tuple[Path, Path]] = []
     failed: list[tuple[Path, str]] = []
-    console.print(
-        f"\n[bold cyan]Iniciando {len(sources)} transcrições com até {workers} simultâneas...[/]"
-    )
-    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="transcricao") as executor:
-        futures = {
-            executor.submit(transcribe, source, translate, client): source for source in sources
-        }
-        for future in as_completed(futures):
-            source = futures[future]
-            try:
-                txt, srt = future.result()
-                completed.append((txt, srt))
-                console.print(f"[bold green][OK] {source.name}[/] -> [white]{txt.name}[/]")
-            except Exception as exc:
-                failed.append((source, str(exc)))
-                console.print(f"[bold red][ERRO] {source.name}[/] -> {exc}")
+    with TranscriptionDashboard(sources) as dashboard:
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="transcricao") as executor:
+            futures = {
+                executor.submit(transcribe, source, translate, client, dashboard): source
+                for source in sources
+            }
+            for future in as_completed(futures):
+                source = futures[future]
+                try:
+                    txt, srt = future.result()
+                    completed.append((txt, srt))
+                except Exception as exc:
+                    failed.append((source, str(exc)))
+                    dashboard.update(source, str(exc)[:80], 100, "error")
     return completed, failed
 
 
@@ -476,7 +633,13 @@ def main() -> None:
         transcript_path: Path | None = None
         if choice in {"2", "3"} and media:
             translate = Confirm.ask("Traduzir o resultado para português do Brasil?", default=True)
-            txt, srt = transcribe(media, translate)
+            dashboard = TranscriptionDashboard([media])
+            with dashboard:
+                try:
+                    txt, srt = transcribe(media, translate, dashboard=dashboard)
+                except Exception as exc:
+                    dashboard.update(media, str(exc)[:80], 100, "error")
+                    raise
             transcript_path = txt
             console.print(Panel(
                 f"[bold bright_green]✓ TRANSCRIÇÃO CONCLUÍDA[/]\n\n[white]{txt}[/]\n[white]{srt}[/]",

@@ -16,6 +16,7 @@ Ferramenta animada para Windows que baixa vídeos do YouTube em **MP4**, extrai 
 - Seleção de quantos áudios e vídeos você quiser em um único lote.
 - Até quatro transcrições simultâneas, com falhas isoladas e novas tentativas automáticas.
 - Nomes automáticos baseados no tema central de cada conteúdo.
+- Dashboard animado premium com progresso global, etapa por arquivo, cronômetro e status ao vivo.
 - Chave da API protegida no arquivo local `.env`, ignorado pelo Git.
 
 ## Como usar
