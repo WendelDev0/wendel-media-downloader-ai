@@ -13,6 +13,9 @@ Ferramenta animada para Windows que baixa vídeos do YouTube em **MP4**, extrai 
 - Geração de texto `.txt` e legenda `.srt`.
 - Pacote completo de estratégia para tráfego pago após a transcrição.
 - Títulos, descrição, headlines, ganchos, copies, roteiros, públicos e testes A/B.
+- Seleção de quantos áudios e vídeos você quiser em um único lote.
+- Até quatro transcrições simultâneas, com falhas isoladas e novas tentativas automáticas.
+- Nomes automáticos baseados no tema central de cada conteúdo.
 - Chave da API protegida no arquivo local `.env`, ignorado pelo Git.
 
 ## Como usar
@@ -27,6 +30,8 @@ Ferramenta animada para Windows que baixa vídeos do YouTube em **MP4**, extrai 
 Downloads ficam em `downloads`. Textos, legendas e estratégias em Markdown ficam em `transcricoes`.
 
 Também é possível usar a opção `04` para gerar uma estratégia a partir de uma transcrição `.txt` já existente.
+
+Use a opção `05` para selecionar vários arquivos. Você pode escolher de 1 a 4 processamentos simultâneos; todos os resultados recebem nomes temáticos e ficam na pasta `transcricoes`.
 
 ## Skill incluída
 

@@ -6,12 +6,14 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import imageio_ffmpeg
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import APIConnectionError, InternalServerError, OpenAI, RateLimitError
 from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
@@ -31,6 +33,7 @@ YOUTUBE_URL = re.compile(
     r"^https?://(www\.)?(youtube\.com/(watch\?v=|shorts/|live/)|youtu\.be/)[^\s]+$",
     re.IGNORECASE,
 )
+OUTPUT_NAME_LOCK = threading.Lock()
 
 
 def intro() -> None:
@@ -150,6 +153,35 @@ def select_local_media() -> Path:
     return path
 
 
+def select_local_media_batch() -> list[Path]:
+    selected: tuple[str, ...] = ()
+    try:
+        from tkinter import Tk, filedialog
+
+        window = Tk()
+        window.withdraw()
+        window.attributes("-topmost", True)
+        selected = filedialog.askopenfilenames(
+            title="Selecione todos os áudios e vídeos",
+            filetypes=[("Áudio e vídeo", "*.mp3 *.mp4 *.mpeg *.mpga *.m4a *.wav *.webm *.ogg *.flac")],
+        )
+        window.destroy()
+    except Exception:
+        pass
+    if not selected:
+        typed = Prompt.ask(
+            "[cyan]Digite os caminhos completos separados por ponto e vírgula[/]"
+        )
+        selected = tuple(item.strip(' "') for item in typed.split(";") if item.strip())
+    paths = [Path(item).expanduser().resolve() for item in selected]
+    invalid = [path for path in paths if not path.is_file() or path.suffix.lower() not in SUPPORTED_MEDIA]
+    if not paths:
+        raise ValueError("Nenhum arquivo foi selecionado.")
+    if invalid:
+        raise ValueError(f"Arquivo inválido ou não suportado: {invalid[0]}")
+    return paths
+
+
 def get_openai_client() -> OpenAI:
     load_dotenv(ENV_FILE)
     key = os.getenv("OPENAI_API_KEY", "").strip()
@@ -187,7 +219,8 @@ def srt_time(seconds: float) -> str:
 
 
 def translate_ptbr(client: OpenAI, text: str) -> str:
-    response = client.responses.create(
+    response = call_with_retry(
+        client.responses.create,
         model="gpt-5-mini",
         instructions=(
             "Traduza o texto para português brasileiro natural e fiel. Preserve nomes, marcas, "
@@ -196,6 +229,52 @@ def translate_ptbr(client: OpenAI, text: str) -> str:
         input=text,
     )
     return response.output_text.strip()
+
+
+def call_with_retry(function, **kwargs):
+    for attempt in range(4):
+        try:
+            if attempt and hasattr(kwargs.get("file"), "seek"):
+                kwargs["file"].seek(0)
+            return function(**kwargs)
+        except (RateLimitError, APIConnectionError, InternalServerError):
+            if attempt == 3:
+                raise
+            time.sleep(2**attempt)
+    raise RuntimeError("Falha inesperada ao chamar a API.")
+
+
+def safe_theme_name(client: OpenAI, transcript: str) -> str:
+    response = call_with_retry(
+        client.responses.create,
+        model="gpt-5.6-luna",
+        reasoning={"effort": "none"},
+        max_output_tokens=40,
+        instructions=(
+            "Identifique o tema central da transcrição e responda somente com um título curto "
+            "em português do Brasil, entre 3 e 7 palavras. Não use aspas, pontuação final, "
+            "prefixos, emojis ou explicações."
+        ),
+        input=transcript[:12_000],
+    )
+    name = response.output_text.strip().strip('"\'')
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", name)
+    name = re.sub(r"\s+", " ", name).strip(" .")[:90].strip()
+    return name or "Transcrição sem tema identificado"
+
+
+def unique_output_paths(theme: str) -> tuple[Path, Path]:
+    with OUTPUT_NAME_LOCK:
+        suffix = 1
+        while True:
+            label = theme if suffix == 1 else f"{theme} ({suffix})"
+            txt = TRANSCRIPTS / f"{label}.txt"
+            srt = TRANSCRIPTS / f"{label}.srt"
+            if not txt.exists() and not srt.exists():
+                txt.touch(exist_ok=False)
+                srt.touch(exist_ok=False)
+                return txt, srt
+            suffix += 1
 
 
 def generate_paid_traffic_assets(client: OpenAI, transcript_path: Path) -> Path:
@@ -275,11 +354,9 @@ def approximate_cues(text: str, start: float, duration: float = 1200) -> list[tu
     return cues
 
 
-def transcribe(source: Path, translate: bool) -> tuple[Path, Path]:
-    client = get_openai_client()
+def transcribe(source: Path, translate: bool, client: OpenAI | None = None) -> tuple[Path, Path]:
+    client = client or get_openai_client()
     TRANSCRIPTS.mkdir(exist_ok=True)
-    text_path = TRANSCRIPTS / f"{source.stem}.txt"
-    srt_path = TRANSCRIPTS / f"{source.stem}.srt"
     all_text: list[str] = []
     cues: list[tuple[float, float, str]] = []
 
@@ -288,7 +365,8 @@ def transcribe(source: Path, translate: bool) -> tuple[Path, Path]:
         for index, part in enumerate(parts, start=1):
             console.print(f"[green]>[/] Transcrevendo parte {index}/{len(parts)}...")
             with part.open("rb") as audio:
-                result = client.audio.transcriptions.create(
+                result = call_with_retry(
+                    client.audio.transcriptions.create,
                     model="gpt-4o-mini-transcribe",
                     file=audio,
                     response_format="json",
@@ -301,7 +379,10 @@ def transcribe(source: Path, translate: bool) -> tuple[Path, Path]:
             offset = (index - 1) * 1200
             cues.extend(approximate_cues(final_text, offset))
 
-    text_path.write_text("\n\n".join(all_text) + "\n", encoding="utf-8")
+    complete_text = "\n\n".join(all_text)
+    theme = safe_theme_name(client, complete_text)
+    text_path, srt_path = unique_output_paths(theme)
+    text_path.write_text(complete_text + "\n", encoding="utf-8")
     srt_lines: list[str] = []
     for number, (start, end, text) in enumerate(cues, start=1):
         srt_lines.extend([str(number), f"{srt_time(start)} --> {srt_time(end)}", text, ""])
@@ -309,14 +390,48 @@ def transcribe(source: Path, translate: bool) -> tuple[Path, Path]:
     return text_path, srt_path
 
 
+def ask_concurrency() -> int:
+    while True:
+        value = Prompt.ask(
+            "[cyan]Quantos arquivos processar simultaneamente?[/]",
+            choices=["1", "2", "3", "4"],
+            default="2",
+        )
+        return int(value)
+
+
+def transcribe_batch(sources: list[Path], translate: bool, workers: int) -> tuple[list[tuple[Path, Path]], list[tuple[Path, str]]]:
+    client = get_openai_client()
+    completed: list[tuple[Path, Path]] = []
+    failed: list[tuple[Path, str]] = []
+    console.print(
+        f"\n[bold cyan]Iniciando {len(sources)} transcrições com até {workers} simultâneas...[/]"
+    )
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="transcricao") as executor:
+        futures = {
+            executor.submit(transcribe, source, translate, client): source for source in sources
+        }
+        for future in as_completed(futures):
+            source = futures[future]
+            try:
+                txt, srt = future.result()
+                completed.append((txt, srt))
+                console.print(f"[bold green][OK] {source.name}[/] -> [white]{txt.name}[/]")
+            except Exception as exc:
+                failed.append((source, str(exc)))
+                console.print(f"[bold red][ERRO] {source.name}[/] -> {exc}")
+    return completed, failed
+
+
 def show_menu() -> str:
     console.print("\n[bold green][01][/] Baixar do YouTube")
     console.print("[bold cyan][02][/] Transcrever arquivo local com IA")
     console.print("[bold magenta][03][/] Baixar do YouTube e transcrever")
     console.print("[bold yellow][04][/] Criar estratégia de tráfego a partir de uma transcrição")
+    console.print("[bold bright_blue][05][/] Transcrever vários arquivos ao mesmo tempo")
     return Prompt.ask(
         "\n[cyan]Escolha uma missão[/]",
-        choices=["1", "2", "3", "4", "01", "02", "03", "04"],
+        choices=["1", "2", "3", "4", "5", "01", "02", "03", "04", "05"],
     )
 
 
@@ -380,6 +495,16 @@ def main() -> None:
                 f"[bold bright_green]✓ ESTRATÉGIA CONCLUÍDA[/]\n\n[white]{strategy}[/]",
                 border_style="green",
             ))
+        if choice == "5":
+            sources = select_local_media_batch()
+            console.print(f"[green]✓ {len(sources)} arquivos selecionados.[/]")
+            translate = Confirm.ask("Traduzir os resultados para português do Brasil?", default=True)
+            workers = ask_concurrency()
+            completed, failed = transcribe_batch(sources, translate, workers)
+            summary = f"[bold green]Concluídos: {len(completed)}[/]\n[bold red]Falhas: {len(failed)}[/]"
+            if completed:
+                summary += f"\n\n[dim]Pasta: {TRANSCRIPTS}[/]"
+            console.print(Panel(summary, title="LOTE FINALIZADO", border_style="bright_blue"))
     except KeyboardInterrupt:
         console.print("\n[yellow]Operação cancelada pelo usuário.[/]")
     except Exception as exc:
