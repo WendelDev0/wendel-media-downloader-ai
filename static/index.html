@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wendel Dev — Mesa de mídia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div id="login" class="login-wrap hidden">
+    <form id="login-form" class="login-card">
+      <p class="kicker">Acesso restrito</p>
+      <h2>Mesa travada</h2>
+      <p class="hint">Digite a senha definida em APP_PASSWORD no Aegis Panel.</p>
+      <div id="login-banner" class="banner"></div>
+      <label for="password">Senha</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <button class="primary" type="submit">Entrar</button>
+    </form>
+  </div>
+
+  <div id="app" class="app hidden">
+    <header class="masthead">
+      <div>
+        <p class="kicker">Wendel Dev // secure terminal v3</p>
+        <h1>Mesa de mídia</h1>
+      </div>
+      <div class="live">
+        <span class="dot"></span>
+        SYSTEM ONLINE
+        <button id="logout" class="ghost" type="button">Sair</button>
+      </div>
+    </header>
+
+    <p id="openai-warn" class="warn hidden">OPENAI_API_KEY ainda não está no ambiente. Download funciona; transcrição e metadados não.</p>
+    <div id="app-banner" class="banner"></div>
+
+    <div class="layout">
+      <aside id="rail" class="rail"></aside>
+      <main class="stage">
+        <p id="hint" class="hint"></p>
+        <form id="form">
+          <div id="youtube-fields">
+            <label for="url">Link do YouTube</label>
+            <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=...">
+          </div>
+          <div id="format-fields" class="row">
+            <div>
+              <label for="format">Formato</label>
+              <select id="format">
+                <option value="mp4">MP4 — vídeo</option>
+                <option value="mp3">MP3 — só áudio</option>
+              </select>
+            </div>
+          </div>
+          <div id="file-fields">
+            <label for="files">Arquivos</label>
+            <input id="files" type="file">
+          </div>
+          <div id="batch-fields">
+            <label for="workers">Arquivos em paralelo</label>
+            <select id="workers">
+              <option value="1">1</option>
+              <option value="2" selected>2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+            </select>
+          </div>
+          <label id="translate-field" class="check">
+            <input id="translate" type="checkbox" checked>
+            Traduzir para português do Brasil
+          </label>
+          <div class="actions">
+            <button id="go" class="primary" type="submit">Disparar job</button>
+          </div>
+        </form>
+
+        <section id="progress" class="progress">
+          <div class="meta">
+            <span id="stage-label">Na fila</span>
+            <span id="percent-label">0%</span>
+          </div>
+          <div class="bar"><span id="bar-fill"></span></div>
+          <div id="results" class="results"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

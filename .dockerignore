@@ -1,0 +1,15 @@
+.venv
+.git
+.gitignore
+downloads
+transcricoes
+uploads
+dist
+build
+.env
+,env.local
+__pycache__
+*.pyc
+*.bat
+*.spec
+WendelDev-AI.spec

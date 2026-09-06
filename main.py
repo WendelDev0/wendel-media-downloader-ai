@@ -218,15 +218,15 @@ def ask_youtube_url() -> str:
         console.print("[bold red]✗ Link inválido. Cole uma URL válida do YouTube.[/]")
 
 
-def download(url: str, media_format: str) -> Path:
+def download(url: str, media_format: str, on_progress=None) -> Path:
     DOWNLOADS.mkdir(exist_ok=True)
     before = set(DOWNLOADS.iterdir())
     common = {
         "outtmpl": str(DOWNLOADS / "%(title).180B [%(id)s].%(ext)s"),
         "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
-        "progress_hooks": [progress_hook],
+        "progress_hooks": [on_progress or progress_hook],
         "noplaylist": True,
-        "windowsfilenames": True,
+        "windowsfilenames": sys.platform == "win32",
         "quiet": True,
         "no_warnings": True,
     }
@@ -311,10 +311,12 @@ def select_local_media_batch() -> list[Path]:
     return paths
 
 
-def get_openai_client() -> OpenAI:
+def get_openai_client(*, interactive: bool = True) -> OpenAI:
     load_dotenv(ENV_FILE)
     key = os.getenv("OPENAI_API_KEY", "").strip()
     if not key:
+        if not interactive:
+            raise ValueError("OPENAI_API_KEY não configurada. Defina no painel ou no arquivo .env.")
         console.print("\n[yellow]A chave será digitada de forma oculta e nunca aparecerá no terminal.[/]")
         key = Prompt.ask("[cyan]OPENAI_API_KEY[/]", password=True).strip()
         if not key.startswith("sk-"):
@@ -646,5 +648,22 @@ def main() -> None:
         sys.exit(1)
 
 
+def should_start_web() -> bool:
+    mode = os.getenv("WENDEL_MODE", "").strip().lower()
+    if mode == "cli":
+        return False
+    if mode == "web":
+        return True
+    if os.getenv("PORT"):
+        return True
+    return not sys.stdin.isatty()
+
+
 if __name__ == "__main__":
-    main()
+    if should_start_web():
+        import uvicorn
+        from app import app
+
+        uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
+    else:
+        main()

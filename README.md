@@ -1,6 +1,6 @@
 # Wendel Dev — Media Downloader + AI Transcriber
 
-Ferramenta animada para Windows que baixa vídeos do YouTube em **MP4**, extrai **MP3** e transcreve arquivos de áudio/vídeo com a API da OpenAI.
+Ferramenta para baixar vídeos do YouTube em **MP4**, extrair **MP3** e transcrever áudio/vídeo com a API da OpenAI. No Windows continua existindo o terminal local. Na VPS, o Aegis Panel sobe a **mesa web**.
 
 ## Recursos
 
@@ -29,6 +29,25 @@ Ferramenta animada para Windows que baixa vídeos do YouTube em **MP4**, extrai 
 6. Após transcrever, confirme a criação automática do título e da descrição do criativo.
 
 Downloads ficam em `downloads`. Cada trabalho recebe uma pasta em `transcricoes/Nome do Tema/`, contendo o texto, a legenda e o arquivo de título e descrição quando ele for gerado.
+
+## Hospedar no Aegis Panel
+
+O painel precisa de um processo HTTP. Este repositório já tem `Dockerfile`, `aegis.toml` e `/health`.
+
+1. Envie o código para o GitHub (sem o arquivo `.env`).
+2. No Aegis, crie um app com origem **git** e este repositório.
+3. Porta interna: **8000**.
+4. Variáveis de ambiente:
+   - `OPENAI_API_KEY` — obrigatória para transcrever
+   - `APP_PASSWORD` — senha da mesa no navegador
+   - `APP_SECRET` — opcional, assina o cookie de sessão
+   - `WENDEL_MODE=web`
+5. Volume persistente em `downloads` e `transcricoes`, se o painel pedir.
+6. Aponte o domínio. O Caddy cuida do HTTPS.
+
+Se o container não tiver teclado, `python main.py` também sobe a web sozinho. Não use mais um app com `customtkinter`/Tk no Aegis: a imagem Linux não tem `libtk8.6.so` e o fallback de `input()` quebra com `EOFError`.
+
+Para testar local: `iniciar-web.bat` ou `python -m uvicorn app:app --host 127.0.0.1 --port 8000`.
 
 ## Gerar aplicativo executável
 

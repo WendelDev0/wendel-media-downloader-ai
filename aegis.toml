@@ -1,0 +1,7 @@
+[build]
+runtime = "python"
+version = "3.12"
+start = "sh start.sh"
+
+[deploy]
+strategy = "blue-green"
