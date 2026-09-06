@@ -659,11 +659,27 @@ def should_start_web() -> bool:
     return not sys.stdin.isatty()
 
 
+def listen_port() -> int:
+    raw = os.getenv("PORT") or "8000"
+    try:
+        port = int(raw)
+    except ValueError:
+        port = 8000
+    return port if 1 <= port <= 65535 else 8000
+
+
+def run_web() -> None:
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=listen_port())
+
+
+# Aegis detecta FastAPI aqui e sobe com `uvicorn main:app` na porta do painel.
+from app import app
+
+
 if __name__ == "__main__":
     if should_start_web():
-        import uvicorn
-        from app import app
-
-        uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
+        run_web()
     else:
         main()

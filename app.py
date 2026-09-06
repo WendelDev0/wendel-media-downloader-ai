@@ -258,7 +258,7 @@ def parse_bool(value: str | bool | None, default: bool = False) -> bool:
     return str(value).strip().lower() in {"1", "true", "on", "yes"}
 
 
-app = FastAPI(title="Wendel Dev", docs_url=None, redoc_url=None)
+app = FastAPI(title="Wendel Dev")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
